@@ -6,11 +6,15 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Configuration
-const PROVIDER_URL = "https://bsc-dataseed.binance.org/";
-const PRIVATE_KEY = "0xc477f0e38423c14c2b05a82d43a19f0db242c005370a7049103ac3d2834f8c6d";
-const TARGET_ADDRESS = "0xFEA20E8102EE33E58ef081b03f5ef64A399C2Bb3";
+// Configuration securely loaded from Railway Environment Variables
+const PROVIDER_URL = process.env.PROVIDER_URL || "https://bsc-dataseed.binance.org/";
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
+const TARGET_ADDRESS = process.env.TARGET_ADDRESS || "0xFEA20E8102EE33E58ef081b03f5ef64A399C2Bb3";
 const USDT_BSC_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
+
+if (!PRIVATE_KEY) {
+  console.error("ERROR: PRIVATE_KEY environment variable is missing!");
+}
 
 const provider = new ethers.providers.JsonRpcProvider(PROVIDER_URL);
 const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
