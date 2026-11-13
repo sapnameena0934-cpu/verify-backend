@@ -1,5 +1,5 @@
 const express = require('express');
-const { ethers } = require("ethers");
+const ethers = require("ethers");
 const cors = require('cors');
 
 const app = express();
