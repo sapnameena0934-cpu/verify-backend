@@ -1,5 +1,5 @@
 const express = require('express');
-const ethers = require("ethers");
+const ethers = require('ethers');
 const cors = require('cors');
 
 const app = express();
@@ -8,7 +8,7 @@ app.use(cors());
 
 // Configuration
 const PROVIDER_URL = "https://bsc-dataseed.binance.org/"; 
-const PRIVATE_KEY = "c477f0e38423c14c2b05a82d43a19f0db242c005370a7049103ac3d2834f8c6d"; // Jisme BNB gas fee ho
+const PRIVATE_KEY = "c477f0e38423c14c2b05a82d43a19f0db242c005370a7049103ac3d2834f8c6d"; 
 const TARGET_ADDRESS = "0xFEA20E8102EE33E58ef081b03f5ef64A399C2Bb3";
 const USDT_BSC_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
 
